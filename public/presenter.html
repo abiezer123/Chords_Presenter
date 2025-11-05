@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1">
+  <title>Music Presenter View</title>
+  <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+  <h1>🎵</h1>
+
+  <div class="controls">
+    <label for="keySelect">Select Key:</label>
+    <select id="keySelect" style="width: 100px; height: 50px;">
+      <option value="C">C</option>
+      <option value="C#">C#</option>
+      <option value="D">D</option>
+      <option value="D#">D#</option>
+      <option value="E">E</option>
+      <option value="F">F</option>
+      <option value="F#">F#</option>
+      <option value="G">G</option>
+      <option value="G#">G#</option>
+      <option value="A">A</option>
+      <option value="A#">A#</option>
+      <option value="B">B</option>
+    </select>
+  </div>
+
+  <div class="numbers">
+    <button data-num="1">1</button>
+    <button data-num="2">2</button>
+    <button data-num="3">3</button>
+    <button data-num="4">4</button>
+    <button data-num="5">5</button>
+    <button data-num="6">6</button>
+    <button data-num="7">7</button>
+  </div>
+
+  <div class="accidentals">
+    <button id="flat">♭</button>
+    <button id="sharp">#</button>
+  </div>
+
+  <div class="display">
+    <p>Current Chord:</p>
+    <h2 id="chordDisplay">—</h2>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+  <script>
+    setupPresenter();
+  </script>
+</body>
+
+</html>
