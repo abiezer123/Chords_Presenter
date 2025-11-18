@@ -5,15 +5,39 @@
   <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1">
   <title>Music Presenter View</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    #webcam {
+      width: 120px;
+      height: 140px;
+      border: 3px solid #0ff;
+      border-radius: 10px;
+      position: fixed;
+      top: 20px;
+      right: 0px;
+      z-index: 1000;
+    }
 
+    body {
+      font-family: Arial, sans-serif;
+    }
+  </style>
 </head>
 
 <body>
-  <h1>🎵</h1>
+  <h1>🎵 Music Presenter</h1>
+
+  <div class="display">
+    <p>Current Chord:</p>
+    <h2 id="chordDisplay">—</h2>
+  </div>
 
   <div class="controls">
     <label for="keySelect">Select Key:</label>
-    <select id="keySelect" style="width: 100px; height: 50px;">
+    <select id="keySelect">
       <option value="C">C</option>
       <option value="C#">C#</option>
       <option value="D">D</option>
@@ -37,6 +61,7 @@
     <button data-num="5">5</button>
     <button data-num="6">6</button>
     <button data-num="7">7</button>
+    <button data-num="0">Clear</button>
   </div>
 
   <div class="accidentals">
@@ -44,15 +69,185 @@
     <button id="sharp">#</button>
   </div>
 
-  <div class="display">
-    <p>Current Chord:</p>
-    <h2 id="chordDisplay">—</h2>
-  </div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="client.js"></script>
+
+  <!-- Webcam preview -->
+  <video id="webcam" autoplay playsinline></video>
+
   <script>
+    const keyChords = {
+      "C": ["C", "Dm", "Em", "F", "G", "Am", "Bdim"],
+      "C#": ["C#", "D#m", "Fm", "F#", "G#", "A#m", "Cdim"],
+      "D": ["D", "Em", "F#m", "G", "A", "Bm", "C#dim"],
+      "D#": ["D#", "Fm", "Gm", "G#", "A#", "Cm", "Ddim"],
+      "E": ["E", "F#m", "G#m", "A", "B", "C#m", "D#dim"],
+      "F": ["F", "Gm", "Am", "A#", "C", "Dm", "Edim"],
+      "F#": ["F#", "G#m", "A#m", "B", "C#", "D#m", "E#dim"],
+      "G": ["G", "Am", "Bm", "C", "D", "Em", "F#dim"],
+      "G#": ["G#", "A#m", "Cm", "C#", "D#", "Fm", "Gdim"],
+      "A": ["A", "Bm", "C#m", "D", "E", "F#m", "G#dim"],
+      "A#": ["A#", "Cm", "Dm", "D#", "F", "Gm", "Adim"],
+      "B": ["B", "C#m", "D#m", "E", "F#", "G#m", "A#dim"]
+    };
+
+    const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const socket = io();
+
+    let currentChord = "";
+    let currentDegree = "";
+    let semitoneOffset = 0;
+    let accidental = "";
+
+    // ---------------- Presenter Setup ----------------
+    function setupPresenter() {
+      const chordDisplay = document.getElementById("chordDisplay");
+      const keySelect = document.getElementById("keySelect");
+
+      function updateDisplay() {
+        const key = keySelect.value;
+        const text = currentDegree ? `${currentDegree}${accidental} → ${currentChord}` : "—";
+        chordDisplay.textContent = text;
+
+        socket.emit("chord-change", {
+          degree: currentDegree ? `${currentDegree}${accidental}` : "",
+          chord: currentChord,
+          key: key
+        });
+      }
+
+      function setChordByDegree(num) {
+        if (num === 0) {
+          currentDegree = "";
+          currentChord = "";
+          semitoneOffset = 0;
+          accidental = "";
+        } else {
+          currentDegree = num;
+          semitoneOffset = 0;
+          accidental = "";
+          currentChord = keyChords[keySelect.value][num - 1];
+        }
+        updateDisplay();
+      }
+
+      // Button clicks
+      document.querySelectorAll("button[data-num]").forEach(btn => {
+        btn.addEventListener("click", () => setChordByDegree(parseInt(btn.dataset.num)));
+      });
+
+      document.getElementById("sharp").addEventListener("click", () => {
+        if (!currentChord) return;
+        currentChord = transposeChord(currentChord, 1);
+        semitoneOffset++;
+        accidental = "♯".repeat(semitoneOffset);
+        updateDisplay();
+      });
+
+      document.getElementById("flat").addEventListener("click", () => {
+        if (!currentChord) return;
+        currentChord = transposeChord(currentChord, -1);
+        semitoneOffset--;
+        accidental = "♭".repeat(Math.abs(semitoneOffset));
+        updateDisplay();
+      });
+
+      keySelect.addEventListener("change", () => {
+        if (!currentDegree) return;
+        currentChord = keyChords[keySelect.value][parseInt(currentDegree) - 1];
+        if (semitoneOffset) currentChord = transposeChord(currentChord, semitoneOffset);
+        updateDisplay();
+      });
+
+      document.addEventListener("keydown", e => {
+        if (e.key >= "1" && e.key <= "7") setChordByDegree(parseInt(e.key));
+        if (e.key === "0" || e.key === " " || e.key === "Enter") setChordByDegree(0);
+        if (e.key === "q") document.getElementById("flat").click();
+        if (e.key === "w") document.getElementById("sharp").click();
+      });
+
+      function transposeChord(chord, semitoneChange) {
+        const match = chord.match(/^([A-G]#?)(.*)$/);
+        if (!match) return chord;
+        const root = match[1];
+        const suffix = match[2];
+        const index = notes.indexOf(root);
+        if (index === -1) return chord;
+        const newIndex = (index + semitoneChange + notes.length) % notes.length;
+        return notes[newIndex] + suffix;
+      }
+    }
+
+    // ---------------- Gesture Recognition ----------------
+    function setupGestureRecognition() {
+      const videoElement = document.getElementById("webcam");
+      const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7 });
+
+      hands.onResults(results => {
+        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return;
+        const landmarks = results.multiHandLandmarks[0];
+
+        // Fingers up with tolerance
+        const fingers = [];
+        fingers[0] = landmarks[8].y < landmarks[6].y - 0.02;   // index
+        fingers[1] = landmarks[12].y < landmarks[10].y - 0.02; // middle
+        fingers[2] = landmarks[16].y < landmarks[14].y - 0.02; // ring
+        fingers[3] = landmarks[20].y < landmarks[18].y - 0.02; // pinky
+
+        // Thumb
+        const isRightHand = landmarks[17].x < landmarks[5].x;
+        if (isRightHand) fingers[4] = landmarks[4].x - landmarks[3].x > 0.03;
+        else fingers[4] = landmarks[3].x - landmarks[4].x > 0.03;
+
+        const fingerCount = countFingersUp(fingers);
+
+        let degree = 0;
+
+        if (fingerCount === 0) degree = 0;                           // fist
+        else if (fingers[0] && fingerCount === 1) degree = 1;        // index
+        else if (fingers[0] && fingers[1] && fingerCount === 2) degree = 2; // index+middle
+        else if (fingerCount === 3) degree = 3;                      // any 3 fingers
+        else if (fingerCount === 4 && !fingers[4]) degree = 4;       // all but thumb
+        else if (fingerCount === 5) degree = 5;                      // all fingers
+        else if (fingers[3] && fingerCount === 1) degree = 6;        // pinky
+        else if (fingers[2] && fingers[3] && fingerCount === 2) degree = 7; // ring+pinky
+
+        // Trigger button click
+        const btn = document.querySelector(`button[data-num="${degree}"]`);
+        if (btn) btn.click();
+      });
+
+      // Helper
+      function countFingersUp(fingers) {
+        return fingers.reduce((acc, val) => acc + (val ? 1 : 0), 0);
+      }
+
+
+      const camera = new Camera(videoElement, {
+        onFrame: async () => await hands.send({ image: videoElement }),
+        width: 640,
+        height: 480
+      });
+      camera.start();
+    }
+
+
+    // ---------------- Audience Setup ----------------
+    function setupAudience() {
+      const audienceChord = document.getElementById("audienceChord");
+      const audienceKey = document.getElementById("audienceKey");
+
+      socket.on("update-chord", data => {
+        if (data.key) audienceKey.textContent = `Key: ${data.key}`;
+        if (!data.chord && !data.degree) audienceChord.textContent = "—";
+        else audienceChord.textContent = `${data.degree} → ${data.chord}`;
+      });
+    }
+
+    // ---------------- Initialize ----------------
     setupPresenter();
+    setupGestureRecognition();
+    setupAudience();
   </script>
 </body>
 

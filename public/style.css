@@ -107,4 +107,21 @@ button:hover {
   }
 
 
+  /* Audience big text */
+  #audienceChord {
+    font-size: 40vw;
+    /* responsive size */
+    font-weight: bold;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    /* occupy 80% of screen */
+  }
+
+  #audienceKey {
+    font-size: 65vw;
+    margin-top: 50px;
+  }
 }

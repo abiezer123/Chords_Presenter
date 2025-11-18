@@ -40,21 +40,31 @@ function setupPresenter() {
 
   function updateDisplay() {
     const key = keySelect.value;
-    const text = `${currentDegree}${accidental ? accidental : ""} → ${currentChord}`;
+    const text = currentDegree ? `${currentDegree}${accidental} → ${currentChord}` : ""; // <-- empty when 0
     chordDisplay.textContent = text;
 
     socket.emit("chord-change", {
-      degree: `${currentDegree}${accidental}`,
+      degree: currentDegree ? `${currentDegree}${accidental}` : "",
       chord: currentChord,
       key: key
     });
   }
 
-  // --- Mouse button clicks (1–7 buttons) ---
+  // --- Mouse button clicks (0–7) ---
   document.querySelectorAll("button[data-num]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const key = keySelect.value;
       const num = parseInt(btn.dataset.num);
+      if (num === 0) {
+        // Clear display completely
+        currentDegree = "";
+        currentChord = "";
+        semitoneOffset = 0;
+        accidental = "";
+        updateDisplay();
+        return;
+      }
+
+      const key = keySelect.value;
       currentDegree = num;
       semitoneOffset = 0;
       accidental = "";
@@ -71,7 +81,7 @@ function setupPresenter() {
     if (currentChord) {
       currentChord = transposeChord(currentChord, +1);
       semitoneOffset += 1;
-      accidental = semitoneOffset > 0 ? "♯".repeat(semitoneOffset) : "";
+      accidental = "♯".repeat(semitoneOffset);
       updateDisplay();
     }
   }
@@ -80,7 +90,7 @@ function setupPresenter() {
     if (currentChord) {
       currentChord = transposeChord(currentChord, -1);
       semitoneOffset -= 1;
-      accidental = semitoneOffset < 0 ? "♭".repeat(Math.abs(semitoneOffset)) : "";
+      accidental = "♭".repeat(Math.abs(semitoneOffset));
       updateDisplay();
     }
   }
@@ -89,49 +99,49 @@ function setupPresenter() {
   keySelect.addEventListener("change", () => {
     const newKey = keySelect.value;
 
-    // If we already have a selected degree (1–7)
     if (currentDegree) {
       const num = parseInt(currentDegree);
       currentChord = keyChords[newKey][num - 1];
-
-      // Apply previous accidental transposition
       if (semitoneOffset !== 0) {
         currentChord = transposeChord(currentChord, semitoneOffset);
       }
       updateDisplay();
     } else {
-      // Just update the key for audience if no chord is selected
       socket.emit("chord-change", { key: newKey });
     }
   });
 
-  // --- 🎹 Keyboard shortcuts ---
+  // --- Keyboard shortcuts ---
   document.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
 
-    // Numbers 1–7 select chord degrees
+    // Numbers 1–7
     if (key >= "1" && key <= "7") {
       const num = parseInt(key);
-      const scaleKey = keySelect.value;
       currentDegree = num;
       semitoneOffset = 0;
       accidental = "";
-      currentChord = keyChords[scaleKey][num - 1];
+      currentChord = keyChords[keySelect.value][num - 1];
       updateDisplay();
+      return;
     }
 
-    // Q for flat (♭)
-    if (key === "q") {
-      applyFlat();
+    // Space, Enter, or 0 to clear
+    if (key === " " || key === "enter" || key === "0") {
+      currentDegree = "";
+      currentChord = "";
+      semitoneOffset = 0;
+      accidental = "";
+      updateDisplay();
+      return;
     }
 
-    // W for sharp (♯)
-    if (key === "w") {
-      applySharp();
-    }
+    if (key === "q") applyFlat();
+    if (key === "w") applySharp();
   });
-}
 
+
+}
 
 // ---------------- Audience ----------------
 function setupAudience() {
@@ -140,7 +150,14 @@ function setupAudience() {
 
   socket.on("update-chord", (data) => {
     if (data.key) audienceKey.textContent = `Key: ${data.key}`;
-    if (data.chord && data.degree)
+    if (!data.chord && !data.degree) {
+      audienceChord.textContent = ""; // <-- empty if 0
+    } else {
       audienceChord.textContent = `${data.degree} → ${data.chord}`;
+    }
   });
 }
+
+// ---------------- Initialize ----------------
+setupPresenter();
+setupAudience();
