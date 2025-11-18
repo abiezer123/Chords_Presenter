@@ -28,7 +28,7 @@
 </head>
 
 <body>
-  <h1>🎵 Music Presenter</h1>
+  <h1>Music</h1>
 
   <div class="display">
     <p>Current Chord:</p>
@@ -208,7 +208,7 @@
         else if (fingers[0] && fingers[1] && fingerCount === 2) degree = 2; // index+middle
         else if (fingerCount === 3) degree = 3;                      // any 3 fingers
         else if (fingerCount === 4 && !fingers[4]) degree = 4;       // all but thumb
-        else if (fingerCount === 5) degree = 5;                      // all fingers
+        else if (fingerCount === 5) degree = 5;  // all fingers
         else if (fingers[3] && fingerCount === 1) degree = 6;        // pinky
         else if (fingers[2] && fingers[3] && fingerCount === 2) degree = 7; // ring+pinky
 
